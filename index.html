@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dorset Community Assets & Power Sharing Network</title>
+    
+    <!-- Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Vis-Network for the interactive graph -->
+    <script type="text/javascript" src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+
+    <style>
+        body { margin: 0; padding: 0; overflow: hidden; background-color: #f8fafc; }
+        #network-container { width: 100%; height: 100%; }
+        /* Custom scrollbar for the sidebar */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #f1f1f1; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+    </style>
+</head>
+<body class="flex flex-col h-screen text-slate-800 font-sans">
+
+    <!-- Header -->
+    <header class="bg-white border-b border-slate-200 px-6 py-4 shadow-sm z-10 flex justify-between items-center">
+        <div>
+            <h1 class="text-2xl font-bold text-slate-900">Dorset Community Assets Network</h1>
+            <p class="text-sm text-slate-500 mt-1">Mapping relationships to explore power-sharing and resource delegation across Dorset.</p>
+        </div>
+        <div class="hidden md:flex space-x-4 text-xs font-medium">
+            <div class="flex items-center"><span class="w-3 h-3 rounded-full bg-blue-500 mr-2"></span> Public Sector</div>
+            <div class="flex items-center"><span class="w-3 h-3 rounded-full bg-teal-500 mr-2"></span> Health (ICS)</div>
+            <div class="flex items-center"><span class="w-3 h-3 rounded-full bg-purple-500 mr-2"></span> VCSE Infrastructure</div>
+            <div class="flex items-center"><span class="w-3 h-3 rounded-full bg-orange-500 mr-2"></span> Community/Third Sector</div>
+            <div class="flex items-center"><span class="w-3 h-3 rounded-full bg-emerald-500 mr-2"></span> Local Councils</div>
+        </div>
+    </header>
+
+    <!-- Main Content Area -->
+    <main class="flex flex-1 overflow-hidden relative flex-col md:flex-row">
+        
+        <!-- Graph Container -->
+        <div class="flex-1 relative bg-slate-50">
+            <div id="network-container"></div>
+            
+            <!-- Controls Overlay -->
+            <div class="absolute bottom-4 left-4 bg-white/90 backdrop-blur p-2 rounded-lg shadow-md border border-slate-200 flex space-x-2">
+                <button id="btn-fit" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-medium rounded transition">Reset View</button>
+            </div>
+        </div>
+
+        <!-- Detail Sidebar -->
+        <aside id="sidebar" class="w-full md:w-96 bg-white border-l border-slate-200 shadow-xl overflow-y-auto transform transition-transform duration-300 z-20 hidden md:block">
+            <div class="p-6 h-full flex flex-col">
+                <div id="default-panel" class="flex-1 flex flex-col items-center justify-center text-center text-slate-400">
+                    <svg class="w-16 h-16 mb-4 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122"></path></svg>
+                    <p class="text-lg font-medium text-slate-600">Select an organization</p>
+                    <p class="text-sm mt-2">Click on any node in the diagram to view relationships, current roles, and power-sharing opportunities.</p>
+                </div>
+
+                <div id="detail-panel" class="hidden flex-col h-full">
+                    <div class="flex justify-between items-start mb-4">
+                        <div>
+                            <span id="node-group" class="text-xs font-bold uppercase tracking-wider px-2 py-1 rounded-full mb-2 inline-block">Category</span>
+                            <h2 id="node-title" class="text-2xl font-bold text-slate-900 mt-1">Node Title</h2>
+                        </div>
+                        <button id="close-sidebar" class="md:hidden text-slate-400 hover:text-slate-600">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                        </button>
+                    </div>
+                    
+                    <p id="node-desc" class="text-slate-600 mb-6 text-sm leading-relaxed">Description goes here.</p>
+
+                    <div class="space-y-5">
+                        <div class="bg-indigo-50 p-4 rounded-lg border border-indigo-100">
+                            <h3 class="text-sm font-bold text-indigo-900 flex items-center mb-2">
+                                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                                Power-Sharing Opportunities
+                            </h3>
+                            <p id="node-power" class="text-sm text-indigo-800 leading-relaxed">Opportunities to decentralize power and share resources.</p>
+                        </div>
+
+                        <div>
+                            <h3 class="text-sm font-bold text-slate-800 border-b border-slate-200 pb-2 mb-3">Key Relationships</h3>
+                            <ul id="node-relations" class="space-y-2 text-sm text-slate-600">
+                                <!-- Populated dynamically -->
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </aside>
+    </main>
+
+    <script>
+        // --- DATA DEFINITION ---
+
+        // Groups definition for styling
+        const groups = {
+            public: { color: { background: '#3b82f6', border: '#2563eb', highlight: { background: '#60a5fa', border: '#1d4ed8' } } },
+            health: { color: { background: '#14b8a6', border: '#0d9488', highlight: { background: '#2dd4bf', border: '#0f766e' } } },
+            infrastructure: { color: { background: '#a855f7', border: '#9333ea', highlight: { background: '#c084fc', border: '#7e22ce' } }, shape: 'hexagon' },
+            third: { color: { background: '#f97316', border: '#ea580c', highlight: { background: '#fb923c', border: '#c2410c' } } },
+            local: { color: { background: '#10b981', border: '#059669', highlight: { background: '#34d399', border: '#047857' } }, shape: 'diamond' }
+        };
+
+        const nodesData = [
+            // Public Sector
+            { id: 'dc', label: 'Dorset Council', group: 'public', size: 35, 
+              desc: 'The unitary local authority for the area (excluding BCP). Responsible for social care, planning, housing strategy, and community asset transfers.',
+              power: 'Can devolve power via Community Asset Transfers (e.g., handing over unused buildings to community groups), shifting commissioning to community-led participatory models, and co-producing adult social care solutions.' },
+            { id: 'police', label: 'Dorset Police', group: 'public', size: 20, 
+              desc: 'Local law enforcement, working in partnership on community safety and youth diversion.',
+              power: 'Can share resources by funding preventative grassroots youth initiatives instead of reactive policing, and embedding officers in community hubs rather than traditional stations.' },
+            { id: 'fire', label: 'Fire & Rescue', group: 'public', size: 20, 
+              desc: 'Dorset & Wiltshire Fire and Rescue Service. Focuses heavily on prevention and safe & well visits.',
+              power: 'Sharing safety data with local groups to target interventions; using fire stations as community meeting spaces.' },
+
+            // Health
+            { id: 'ics', label: 'Our Dorset (ICS)', group: 'health', size: 35, shape: 'star',
+              desc: 'The Integrated Care System bringing together NHS, councils, and VCSE partners to tackle health inequalities.',
+              power: 'Crucial opportunity to shift NHS funding upstream to preventative, community-led health hubs. Moving from "medicalising" social problems to funding social solutions.' },
+            { id: 'nhs', label: 'NHS Dorset (ICB)', group: 'health', size: 25, 
+              desc: 'The Integrated Care Board responsible for NHS budget and commissioning.',
+              power: 'Simplifying procurement rules so smaller third-sector organizations can bid for health and wellbeing contracts.' },
+            { id: 'phd', label: 'Public Health Dorset', group: 'health', size: 25, 
+              desc: 'A joint service between Dorset Council and BCP Council focusing on wider determinants of health.',
+              power: 'Supporting the "Thriving Communities" programme, investing public health budgets directly into village halls and grassroots networks.' },
+
+            // VCSE Infrastructure (The Connectors)
+            { id: 'vcsa', label: 'Dorset VCSA', group: 'infrastructure', size: 30, 
+              desc: 'Voluntary and Community Sector Assembly. The representative voice of the sector within the ICS.',
+              power: 'Acts as the democratic bridge. Ensuring community groups have a direct, voting seat at the table when ICS strategy is written.' },
+            { id: 'dca', label: 'Dorset Community Action', group: 'infrastructure', size: 25, 
+              desc: 'Supports rural communities, helping village halls transform into health and wellbeing hubs.',
+              power: 'Capacity building: equipping local volunteers with the governance and skills needed to safely take on delegated public services.' },
+            { id: 'can', label: 'Community Action Network', group: 'infrastructure', size: 25, 
+              desc: 'Provides support, training, and voice for charities and community groups across Dorset.',
+              power: 'Distributing micro-grants directly to unconstituted groups, bypassing heavy bureaucracy.' },
+            { id: 'vcd', label: 'Volunteer Centre Dorset', group: 'infrastructure', size: 20, 
+              desc: 'Matches volunteers with charities and helps organizations build good governance.',
+              power: 'Moving from "managing volunteers" to fostering community activism and peer-to-peer support networks.' },
+            { id: 'dcf', label: 'Dorset Community Foundation', group: 'infrastructure', size: 25, 
+              desc: 'Local grant-maker leveraging private and public funds for community benefit (e.g., Neighbourhood Fund).',
+              power: 'Implementing Participatory Grantmaking—letting communities themselves decide which local projects receive the funding.' },
+
+            // Community & Third Sector
+            { id: 'cab', label: 'Citizens Advice', group: 'third', size: 20, 
+              desc: 'Provides crucial advice on debt, housing, and benefits.',
+              power: 'Integrating advice workers directly into clinical settings (e.g., GP surgeries) to treat the root causes of anxiety and ill-health.' },
+            { id: 'halls', label: 'Village Halls', group: 'third', size: 25, 
+              desc: 'The backbone of rural Dorset. Often under-utilized assets managed by local volunteers.',
+              power: 'Becoming commissioned "Rural Service Hubs" that deliver social care, combating isolation locally rather than relying on centralized council day centres.' },
+            { id: 'food', label: 'Food Banks & Fridges', group: 'third', size: 20, 
+              desc: 'Grassroots response to food insecurity and cost of living.',
+              power: 'Evolving from emergency aid to community food partnerships, giving residents control over local food systems and growing spaces.' },
+            { id: 'help', label: 'Help & Kindness', group: 'third', size: 20, 
+              desc: 'A project mapping and connecting local help, support, and services across Dorset.',
+              power: 'Aiding the system to see the "invisible" community assets so statutory bodies know who to share power with.' },
+            { id: 'youth', label: 'Youth Centres', group: 'third', size: 20, 
+              desc: 'Local groups providing safe spaces and activities for young people.',
+              power: 'Youth-led commissioning: Giving young people the budget to design and run their own local services.' },
+
+            // Local Councils
+            { id: 'town', label: 'Town & Parish Councils', group: 'local', size: 25, 
+              desc: 'The most local tier of statutory government (e.g., Weymouth, Dorchester, rural parishes).',
+              power: 'Receiving devolved assets (parks, toilets, community centres) from Dorset Council, funded by a local precept to ensure sustainable local control.' }
+        ];
+
+        const edgesData = [
+            // Strategic & Statutory
+            { from: 'dc', to: 'ics', label: 'Strategic Partner', arrows: 'to, from', dashes: true },
+            { from: 'nhs', to: 'ics', label: 'Strategic Partner', arrows: 'to, from', dashes: true },
+            { from: 'vcsa', to: 'ics', label: 'VCSE Representation', arrows: 'to', width: 3, color: {color: '#9333ea'} },
+            { from: 'dc', to: 'phd', label: 'Joint Funding', arrows: 'to' },
+            { from: 'dc', to: 'police', label: 'Community Safety', arrows: 'to, from' },
+            
+            // Commissioning & Funding
+            { from: 'dc', to: 'dca', label: 'Commissions', arrows: 'to' },
+            { from: 'dc', to: 'vcd', label: 'Commissions', arrows: 'to' },
+            { from: 'nhs', to: 'vcsa', label: 'Funds & Partners', arrows: 'to' },
+            { from: 'dc', to: 'town', label: 'Asset Transfers', arrows: 'to', width: 2, color: {color: '#10b981'} },
+            { from: 'dcf', to: 'food', label: 'Grants', arrows: 'to' },
+            { from: 'dcf', to: 'youth', label: 'Grants', arrows: 'to' },
+            { from: 'ics', to: 'can', label: 'Health Inequalities Fund', arrows: 'to' },
+            
+            // On the ground / Support / Delivery
+            { from: 'phd', to: 'halls', label: 'Thriving Communities', arrows: 'to' },
+            { from: 'dca', to: 'halls', label: 'Capacity Building', arrows: 'to', width: 2 },
+            { from: 'can', to: 'cab', label: 'Network Support', arrows: 'to' },
+            { from: 'vcd', to: 'food', label: 'Provides Volunteers', arrows: 'to' },
+            { from: 'vcd', to: 'youth', label: 'Provides Volunteers', arrows: 'to' },
+            { from: 'help', to: 'halls', label: 'Signposts to', arrows: 'to', dashes: true },
+            { from: 'help', to: 'food', label: 'Signposts to', arrows: 'to', dashes: true },
+            { from: 'police', to: 'youth', label: 'Diversion referral', arrows: 'to' },
+            { from: 'town', to: 'halls', label: 'Local Funding', arrows: 'to' },
+            { from: 'cab', to: 'food', label: 'Referrals', arrows: 'to, from' },
+            { from: 'nhs', to: 'halls', label: 'Social Prescribing', arrows: 'to', color: {color: '#0d9488'} }
+        ];
+
+        // --- VIS.JS INITIALIZATION ---
+        const container = document.getElementById('network-container');
+        
+        const data = {
+            nodes: new vis.DataSet(nodesData),
+            edges: new vis.DataSet(edgesData)
+        };
+        
+        const options = {
+            nodes: {
+                shape: 'dot',
+                borderWidth: 2,
+                shadow: true,
+                font: { size: 14, face: 'Inter, sans-serif', color: '#1e293b', strokeWidth: 3, strokeColor: '#ffffff' }
+            },
+            edges: {
+                width: 1,
+                shadow: false,
+                smooth: { type: 'continuous' },
+                font: { size: 10, align: 'middle', background: 'white' },
+                color: { color: '#94a3b8', highlight: '#475569' }
+            },
+            groups: groups,
+            physics: {
+                forceAtlas2Based: {
+                    gravitationalConstant: -100,
+                    centralGravity: 0.01,
+                    springLength: 200,
+                    springConstant: 0.05
+                },
+                maxVelocity: 50,
+                solver: 'forceAtlas2Based',
+                timestep: 0.35,
+                stabilization: { iterations: 150 }
+            },
+            interaction: {
+                hover: true,
+                tooltipDelay: 200,
+                zoomView: true
+            }
+        };
+
+        const network = new vis.Network(container, data, options);
+
+        // --- UI INTERACTION LOGIC ---
+        
+        const sidebar = document.getElementById('sidebar');
+        const defaultPanel = document.getElementById('default-panel');
+        const detailPanel = document.getElementById('detail-panel');
+        
+        const groupNames = {
+            'public': { name: 'Public Sector (Statutory)', color: 'bg-blue-100 text-blue-800' },
+            'health': { name: 'Healthcare (ICS)', color: 'bg-teal-100 text-teal-800' },
+            'infrastructure': { name: 'VCSE Infrastructure', color: 'bg-purple-100 text-purple-800' },
+            'third': { name: 'Community & Third Sector', color: 'bg-orange-100 text-orange-800' },
+            'local': { name: 'Local Councils', color: 'bg-emerald-100 text-emerald-800' }
+        };
+
+        network.on("selectNode", function (params) {
+            const nodeId = params.nodes[0];
+            const node = nodesData.find(n => n.id === nodeId);
+            
+            if (node) {
+                // Show Sidebar (for mobile)
+                sidebar.classList.remove('hidden');
+                sidebar.classList.add('absolute', 'inset-y-0', 'right-0', 'md:relative');
+                
+                // Toggle Panels
+                defaultPanel.classList.add('hidden');
+                detailPanel.classList.remove('hidden');
+                detailPanel.classList.add('flex');
+                
+                // Populate Data
+                document.getElementById('node-title').innerText = node.label;
+                document.getElementById('node-desc').innerText = node.desc;
+                document.getElementById('node-power').innerText = node.power;
+                
+                const groupBadge = document.getElementById('node-group');
+                groupBadge.className = `text-xs font-bold uppercase tracking-wider px-2 py-1 rounded-full mb-2 inline-block ${groupNames[node.group].color}`;
+                groupBadge.innerText = groupNames[node.group].name;
+
+                // Populate Relationships
+                const relationsList = document.getElementById('node-relations');
+                relationsList.innerHTML = '';
+                
+                const connectedEdges = edgesData.filter(e => e.from === nodeId || e.to === nodeId);
+                if (connectedEdges.length === 0) {
+                    relationsList.innerHTML = '<li class="italic text-slate-400">No direct connections mapped.</li>';
+                } else {
+                    connectedEdges.forEach(edge => {
+                        const isFrom = edge.from === nodeId;
+                        const otherNodeId = isFrom ? edge.to : edge.from;
+                        const otherNode = nodesData.find(n => n.id === otherNodeId);
+                        
+                        let relationText = '';
+                        if (edge.arrows === 'to, from') {
+                            relationText = `<span class="font-semibold">${edge.label}</span> with <span class="font-medium text-slate-800">${otherNode.label}</span>`;
+                        } else if (isFrom) {
+                            relationText = `<span class="font-semibold">${edge.label}</span> to <span class="font-medium text-slate-800">${otherNode.label}</span>`;
+                        } else {
+                            relationText = `Receives <span class="font-semibold">${edge.label}</span> from <span class="font-medium text-slate-800">${otherNode.label}</span>`;
+                        }
+
+                        const li = document.createElement('li');
+                        li.className = 'flex items-start bg-slate-50 p-2 rounded border border-slate-100';
+                        li.innerHTML = `
+                            <svg class="w-4 h-4 text-slate-400 mt-0.5 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"></path></svg>
+                            <span>${relationText}</span>
+                        `;
+                        relationsList.appendChild(li);
+                    });
+                }
+            }
+        });
+
+        network.on("deselectNode", function () {
+            // Revert to default panel
+            defaultPanel.classList.remove('hidden');
+            detailPanel.classList.add('hidden');
+            detailPanel.classList.remove('flex');
+            
+            // Hide on mobile
+            if (window.innerWidth < 768) {
+                sidebar.classList.add('hidden');
+            }
+        });
+
+        // Controls
+        document.getElementById('btn-fit').addEventListener('click', () => {
+            network.fit({ animation: { duration: 1000, easingFunction: 'easeInOutQuad' } });
+        });
+
+        document.getElementById('close-sidebar').addEventListener('click', () => {
+            sidebar.classList.add('hidden');
+            network.unselectAll();
+            defaultPanel.classList.remove('hidden');
+            detailPanel.classList.add('hidden');
+            detailPanel.classList.remove('flex');
+        });
+
+    </script>
+</body>
+</html>
